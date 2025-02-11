@@ -24,11 +24,12 @@ To run the code, you need to have the following Python libraries installed:
 *   scikit-learn
 
 ## Usage
-Clone the repository: git clone https://github.com/your-username/patient-survival-predictor.git
+Clone the repository: git clone https://github.com/Zeel369/patient-survival-predictor.git
 Navigate to the project directory: cd patient-survival-predictor
 Run the code: python notebooks/example.py
-Results
-The model achieved an accuracy of [insert accuracy] in predicting patient survival outcomes.
+
+## Results
+The model achieved an accuracy of  in predicting patient survival outcomes.
 
 ## Future Work
 Explore different machine learning models to improve prediction accuracy.
