@@ -1,0 +1,186 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.metrics import accuracy_score, classification_report
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+# Set style for better-looking plots
+plt.style.use('seaborn')
+sns.set_palette("husl")
+
+def load_and_prepare_data(file_path):
+    """Load and prepare the dataset."""
+    df = pd.read_csv(file_path)
+    print("Dataset Overview:")
+    print("\nFirst few rows:")
+    print(df.head())
+    print("\nDataset Info:")
+    print(df.info())
+    return df
+
+def create_enhanced_visualizations(df):
+    """Create enhanced visualizations with detailed explanations."""
+    
+    # Create a figure with subplots
+    fig = plt.figure(figsize=(20, 25))
+    
+    # 1. Gender Distribution with percentages
+    plt.subplot(3, 2, 1)
+    gender_counts = df['Gender'].value_counts()
+    gender_percentages = (gender_counts / len(df) * 100).round(1)
+    sns.barplot(x=gender_counts.index, y=gender_counts.values)
+    plt.title('Distribution of Oral Cancer Cases by Gender', pad=20)
+    plt.xlabel('Gender')
+    plt.ylabel('Number of Cases')
+    
+    # Add percentage labels
+    for i, (count, percentage) in enumerate(zip(gender_counts.values, gender_percentages)):
+        plt.text(i, count, f'{count}\n({percentage}%)', 
+                ha='center', va='bottom')
+    
+    # 2. Age Distribution with statistical annotations
+    plt.subplot(3, 2, 2)
+    sns.histplot(data=df, x='Age', bins=30, kde=True)
+    plt.axvline(df['Age'].mean(), color='red', linestyle='--', label=f'Mean Age: {df["Age"].mean():.1f}')
+    plt.axvline(df['Age'].median(), color='green', linestyle='--', label=f'Median Age: {df["Age"].median():.1f}')
+    plt.title('Age Distribution of Patients', pad=20)
+    plt.xlabel('Age')
+    plt.ylabel('Count')
+    plt.legend()
+    
+    # 3. Diagnosis Stage with Survival Rate
+    plt.subplot(3, 2, 3)
+    stage_survival = df.groupby('Diagnosis_Stage')['Survival_Rate'].mean().round(1)
+    sns.barplot(x=stage_survival.index, y=stage_survival.values, palette='RdYlGn')
+    plt.title('Average Survival Rate by Diagnosis Stage', pad=20)
+    plt.xlabel('Diagnosis Stage')
+    plt.ylabel('Average Survival Rate (%)')
+    
+    # Add percentage labels
+    for i, rate in enumerate(stage_survival):
+        plt.text(i, rate, f'{rate}%', ha='center', va='bottom')
+    
+    # 4. Risk Factors Analysis
+    plt.subplot(3, 2, 4)
+    risk_factors = pd.DataFrame({
+        'Factor': ['Tobacco Use', 'Alcohol Use'],
+        'Yes': [df['Tobacco_Use'].mean() * 100, df['Alcohol_Use'].mean() * 100],
+        'No': [(1 - df['Tobacco_Use'].mean()) * 100, (1 - df['Alcohol_Use'].mean()) * 100]
+    })
+    
+    x = np.arange(len(risk_factors['Factor']))
+    width = 0.35
+    
+    plt.bar(x - width/2, risk_factors['Yes'], width, label='Yes')
+    plt.bar(x + width/2, risk_factors['No'], width, label='No')
+    plt.xlabel('Risk Factors')
+    plt.ylabel('Percentage')
+    plt.title('Distribution of Risk Factors', pad=20)
+    plt.xticks(x, risk_factors['Factor'])
+    plt.legend()
+    
+    # Add percentage labels
+    for i, (yes, no) in enumerate(zip(risk_factors['Yes'], risk_factors['No'])):
+        plt.text(i - width/2, yes, f'{yes:.1f}%', ha='center', va='bottom')
+        plt.text(i + width/2, no, f'{no:.1f}%', ha='center', va='bottom')
+    
+    # 5. Socioeconomic Status vs Survival Rate
+    plt.subplot(3, 2, 5)
+    sns.boxplot(x='Socioeconomic_Status', y='Survival_Rate', data=df)
+    plt.title('Survival Rate by Socioeconomic Status', pad=20)
+    plt.xlabel('Socioeconomic Status')
+    plt.ylabel('Survival Rate (%)')
+    
+    # Add statistical annotations
+    for status in df['Socioeconomic_Status'].unique():
+        mean_survival = df[df['Socioeconomic_Status'] == status]['Survival_Rate'].mean()
+        plt.text(list(df['Socioeconomic_Status'].unique()).index(status), 
+                df['Survival_Rate'].max(), 
+                f'Mean: {mean_survival:.1f}%', 
+                ha='center', va='bottom')
+    
+    plt.tight_layout(pad=3.0)
+    plt.show()
+
+def create_prediction_model(df):
+    """Create and train a prediction model for survival rate."""
+    
+    # Prepare features and target
+    # Convert categorical variables to numeric
+    df_model = df.copy()
+    df_model['Gender'] = df_model['Gender'].map({'Male': 0, 'Female': 1})
+    df_model['Diagnosis_Stage'] = df_model['Diagnosis_Stage'].map({'Early': 0, 'Moderate': 1, 'Late': 2})
+    df_model['Socioeconomic_Status'] = df_model['Socioeconomic_Status'].map({'Low': 0, 'Middle': 1, 'High': 2})
+    
+    # Define features and target
+    features = ['Age', 'Gender', 'Tobacco_Use', 'Alcohol_Use', 'Diagnosis_Stage', 'Socioeconomic_Status']
+    X = df_model[features]
+    y = df_model['Survival_Rate']
+    
+    # Split the data
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    
+    # Scale the features
+    scaler = StandardScaler()
+    X_train_scaled = scaler.fit_transform(X_train)
+    X_test_scaled = scaler.transform(X_test)
+    
+    # Train the model
+    model = RandomForestClassifier(n_estimators=100, random_state=42)
+    model.fit(X_train_scaled, y_train)
+    
+    # Evaluate the model
+    y_pred = model.predict(X_test_scaled)
+    print("\nModel Performance:")
+    print(f"Accuracy: {accuracy_score(y_test, y_pred):.2f}")
+    print("\nDetailed Classification Report:")
+    print(classification_report(y_test, y_pred))
+    
+    # Feature importance
+    feature_importance = pd.DataFrame({
+        'feature': features,
+        'importance': model.feature_importances_
+    }).sort_values('importance', ascending=False)
+    
+    plt.figure(figsize=(10, 6))
+    sns.barplot(x='importance', y='feature', data=feature_importance)
+    plt.title('Feature Importance in Predicting Survival Rate')
+    plt.show()
+    
+    return model, scaler
+
+def predict_survival(model, scaler, patient_data):
+    """Predict survival rate for a new patient."""
+    # Convert patient data to correct format
+    patient_array = np.array(patient_data).reshape(1, -1)
+    patient_scaled = scaler.transform(patient_array)
+    prediction = model.predict(patient_scaled)[0]
+    
+    return prediction
+
+def main():
+    # Load the data
+    file_path = "/Volumes/Sadhu/Career/Portfolio_Projects/Data_Science_Projects/data/raw/oral_cancer_prediction_dataset.csv"  # Update this path
+    df = load_and_prepare_data(file_path)
+    
+    # Create enhanced visualizations
+    create_enhanced_visualizations(df)
+    
+    # Create and train the prediction model
+    model, scaler = create_prediction_model(df)
+    
+    # Example of predicting for a new patient
+    print("\nExample Prediction:")
+    # Example patient data: [Age, Gender, Tobacco_Use, Alcohol_Use, Diagnosis_Stage, Socioeconomic_Status]
+    example_patient = [45, 0, 1, 0, 1, 1]  # 45-year-old male, tobacco user, non-alcohol user, moderate stage, middle class
+    prediction = predict_survival(model, scaler, example_patient)
+    print(f"Predicted Survival Rate: {prediction}%")
+
+if __name__ == "__main__":
+    main()

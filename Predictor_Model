@@ -1,0 +1,281 @@
+import numpy as np
+import pandas as pd
+from sklearn.model_selection import train_test_split, cross_val_score
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.metrics import mean_squared_error, r2_score
+from typing import Dict, Any, Optional, List
+import pickle
+import os
+import logging
+from pathlib import Path
+
+# Set up logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+
+class SurvivalPredictionSystem:
+    def __init__(self):
+        self.model: Optional[RandomForestRegressor] = None
+        self.scaler = StandardScaler()
+        self.label_encoders = {
+            'Gender': LabelEncoder(),
+            'Diagnosis_Stage': LabelEncoder(),
+            'Treatment_Type': LabelEncoder()
+        }
+        self.feature_names = [
+            'Age', 'Gender', 'Tobacco_Use', 'Alcohol_Use',
+            'Diagnosis_Stage', 'Treatment_Type'
+        ]
+        
+    def train_model(self, data_path: str) -> Dict[str, float]:
+        """
+        Train the model with existing data and return performance metrics.
+        """
+        try:
+            df = pd.read_csv(data_path)
+            logging.info(f"Loaded training data from {data_path}")
+            
+            # Validate required columns
+            missing_cols = set(self.feature_names) - set(df.columns)
+            if missing_cols:
+                raise ValueError(f"Missing required columns: {missing_cols}")
+            
+            # Encode categorical variables
+            for col, encoder in self.label_encoders.items():
+                df[col] = encoder.fit_transform(df[col])
+            
+            X = df[self.feature_names]
+            y = df['Survival_Rate']
+            
+            # Split and scale data
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.2, random_state=42
+            )
+            X_train_scaled = self.scaler.fit_transform(X_train)
+            X_test_scaled = self.scaler.transform(X_test)
+            
+            # Train model
+            self.model = RandomForestRegressor(
+                n_estimators=100,
+                random_state=42,
+                n_jobs=-1
+            )
+            
+            self.model.fit(X_train_scaled, y_train)
+            
+            # Calculate metrics
+            train_pred = self.model.predict(X_train_scaled)
+            test_pred = self.model.predict(X_test_scaled)
+            
+            metrics = {
+                'train_r2': r2_score(y_train, train_pred),
+                'test_r2': r2_score(y_test, test_pred),
+                'train_rmse': np.sqrt(mean_squared_error(y_train, train_pred)),
+                'test_rmse': np.sqrt(mean_squared_error(y_test, test_pred))
+            }
+            
+            logging.info("Model training completed successfully")
+            return metrics
+            
+        except Exception as e:
+            logging.error(f"Error during model training: {str(e)}")
+            raise
+    
+    def save_model(self, path: str = 'survival_model.pkl') -> None:
+        """Save the trained model and preprocessors"""
+        if self.model is None:
+            raise ValueError("Model must be trained before saving")
+            
+        try:
+            model_data = {
+                'model': self.model,
+                'scaler': self.scaler,
+                'label_encoders': self.label_encoders,
+                'feature_names': self.feature_names
+            }
+            with open(path, 'wb') as f:
+                pickle.dump(model_data, f)
+            logging.info(f"Model saved successfully to {path}")
+            
+        except Exception as e:
+            logging.error(f"Error saving model: {str(e)}")
+            raise
+            
+    def load_model(self, path: str = 'survival_model.pkl') -> None:
+        """Load a trained model"""
+        try:
+            with open(path, 'rb') as f:
+                model_data = pickle.load(f)
+            
+            self.model = model_data['model']
+            self.scaler = model_data['scaler']
+            self.label_encoders = model_data['label_encoders']
+            self.feature_names = model_data['feature_names']
+            
+            logging.info(f"Model loaded successfully from {path}")
+            
+        except Exception as e:
+            logging.error(f"Error loading model: {str(e)}")
+            raise
+
+def get_user_input() -> Dict[str, Any]:
+    """Get and validate user input for patient data"""
+    print("\n=== Patient Information Input System ===\n")
+    
+    # Gender input
+    while True:
+        gender = input("Enter patient's gender (Male/Female): ").strip().capitalize()
+        if gender in ['Male', 'Female']:
+            break
+        print("Invalid input. Please enter 'Male' or 'Female'.")
+    
+    # Age input
+    while True:
+        try:
+            age = int(input("Enter patient's age: "))
+            if 0 <= age <= 120:
+                break
+            print("Please enter a valid age between 0 and 120.")
+        except ValueError:
+            print("Please enter a valid number.")
+    
+    # Tobacco use input
+    while True:
+        tobacco = input("Does the patient use tobacco? (Yes/No): ").strip().lower()
+        if tobacco in ['yes', 'no']:
+            tobacco_value = 1 if tobacco == 'yes' else 0
+            break
+        print("Invalid input. Please enter 'Yes' or 'No'.")
+    
+    # Alcohol use input
+    while True:
+        alcohol = input("Does the patient use alcohol? (Yes/No): ").strip().lower()
+        if alcohol in ['yes', 'no']:
+            alcohol_value = 1 if alcohol == 'yes' else 0
+            break
+        print("Invalid input. Please enter 'Yes' or 'No'.")
+    
+    # Diagnosis stage input
+    while True:
+        print("\nDiagnosis Stages:")
+        print("1. Early")
+        print("2. Moderate")
+        print("3. Late")
+        stage = input("Enter the diagnosis stage (1-3): ").strip()
+        if stage in ['1', '2', '3']:
+            stage_map = {'1': 'Early', '2': 'Moderate', '3': 'Late'}
+            diagnosis_stage = stage_map[stage]
+            break
+        print("Invalid input. Please enter a number between 1 and 3.")
+    
+    # Treatment type input
+    while True:
+        print("\nTreatment Types:")
+        print("1. Surgery")
+        print("2. Chemotherapy")
+        print("3. Radiation")
+        print("4. Combined")
+        treatment = input("Enter the treatment type (1-4): ").strip()
+        if treatment in ['1', '2', '3', '4']:
+            treatment_map = {
+                '1': 'Surgery',
+                '2': 'Chemotherapy',
+                '3': 'Radiation',
+                '4': 'Combined'
+            }
+            treatment_type = treatment_map[treatment]
+            break
+        print("Invalid input. Please enter a number between 1 and 4.")
+    
+    return {
+        'Gender': gender,
+        'Age': age,
+        'Tobacco_Use': tobacco_value,
+        'Alcohol_Use': alcohol_value,
+        'Diagnosis_Stage': diagnosis_stage,
+        'Treatment_Type': treatment_type
+    }
+
+def predict_survival(patient_data: Dict[str, Any], predictor: SurvivalPredictionSystem) -> Optional[float]:
+    """Predict survival rate for given patient data"""
+    try:
+        # Prepare input data
+        input_data = np.zeros(len(predictor.feature_names))
+        
+        for i, feature in enumerate(predictor.feature_names):
+            if feature in predictor.label_encoders:
+                input_data[i] = predictor.label_encoders[feature].transform([patient_data[feature]])[0]
+            else:
+                input_data[i] = patient_data[feature]
+        
+        # Scale and predict
+        input_scaled = predictor.scaler.transform(input_data.reshape(1, -1))
+        prediction = predictor.model.predict(input_scaled)[0]
+        
+        # Ensure prediction is within valid range
+        prediction = np.clip(prediction, 0, 100)
+        
+        return prediction
+        
+    except Exception as e:
+        logging.error(f"Error in prediction: {str(e)}")
+        return None
+
+def main():
+    predictor = SurvivalPredictionSystem()
+    model_path = Path('survival_model.pkl')
+    
+    try:
+        # Initialize model
+        if model_path.exists():
+            predictor.load_model(str(model_path))
+        else:
+            print("Training new model...")
+            predictor.train_model('data/oral_cancer_prediction_dataset.csv')
+            predictor.save_model(str(model_path))
+        
+        while True:
+            # Get patient data
+            patient_data = get_user_input()
+            
+            # Make prediction
+            survival_rate = predict_survival(patient_data, predictor)
+            
+            if survival_rate is not None:
+                print("\n=== Prediction Results ===")
+                print(f"Predicted Survival Rate: {survival_rate:.1f}%")
+                
+                # Risk level assessment
+                risk_level = (
+                    "Low Risk" if survival_rate >= 70
+                    else "Moderate Risk" if survival_rate >= 40
+                    else "High Risk"
+                )
+                print(f"Risk Level: {risk_level}")
+                
+                # Display recommendations
+                print("\nRecommendations:")
+                if patient_data['Tobacco_Use'] == 1:
+                    print("- Immediate cessation of tobacco use is strongly recommended")
+                if patient_data['Alcohol_Use'] == 1:
+                    print("- Alcohol cessation is advised for better treatment outcomes")
+                if patient_data['Diagnosis_Stage'] == 'Late':
+                    print("- More frequent follow-up visits may be necessary")
+                    print("- Consider additional supportive care options")
+            
+            # Ask about another prediction
+            again = input("\nWould you like to make another prediction? (yes/no): ").lower()
+            if again != 'yes':
+                break
+                
+        print("\nThank you for using the Survival Prediction System!")
+        
+    except Exception as e:
+        logging.error(f"Critical error in main execution: {str(e)}")
+        print("A critical error occurred. Please check the logs for details.")
+
+if __name__ == "__main__":
+    main()
