@@ -28,21 +28,3 @@ You can install these libraries using pip:
 ```bash
 pip install -r requirements.txt
 # Patient_Survival_Predictor
-
-**## Usage**
-Clone the repository: git clone https://github.com/your-username/patient-survival-predictor.git
-Navigate to the project directory: cd patient-survival-predictor
-Run the code: python notebooks/example.py
-Results
-The model achieved an accuracy of [insert accuracy] in predicting patient survival outcomes.
-
-**##Future Work**
-Explore different machine learning models to improve prediction accuracy.
-Perform feature engineering to extract more relevant information from the data.
-Deploy the model as a web application for easier access.
-
-**##Contributing**
-Contributions are welcome! Open issues or submit pull requests.
-
-**##License**
-This project is licensed under the MIT License - see the LICENSE file for details.
